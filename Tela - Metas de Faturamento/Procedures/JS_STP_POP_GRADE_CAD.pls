@@ -1,0 +1,132 @@
+CREATE OR REPLACE PROCEDURE JS_STP_POP_GRADE_CAD (
+    P_CODUSU NUMBER,        
+    P_IDSESSAO VARCHAR2,   
+    P_QTDLINHAS NUMBER,     
+    P_MENSAGEM OUT VARCHAR2 
+) AS
+    V_PROXNRORESVEN     AD_TMTFATRTVEN.NRORESVEN%TYPE;
+   
+    V_PARAM_CODEMP      AD_TMTFAT.CODEMP%TYPE;
+    V_CODEMP            AD_TMTFAT.CODEMP%TYPE;
+    V_CODEMPMETA        AD_TMTFAT.CODEMP%TYPE;
+    V_FIELD_CODMETA     AD_TMTFAT.CODMETA%TYPE;
+    V_AFFECTED_ROWS     NUMBER:= 0;
+
+    V_DTINI             AD_TMTFAT.DTINI%TYPE;
+    V_DTFIN             AD_TMTFAT.DTFIN%TYPE;
+    V_PERCAV            NUMBER := 2.00;
+    V_CRESC             NUMBER := 0.00;
+    V_FATEST            NUMBER := 0;
+BEGIN
+    
+    IF P_QTDLINHAS > 1 THEN
+        P_MENSAGEM:= '<b>Por questões de performance, é permitido a população de uma meta por vez. Linhas selecionadas:</b> ' || TO_CHAR(P_QTDLINHAS);
+        RETURN;
+    END IF;
+
+    V_PARAM_CODEMP:= ACT_INT_PARAM(P_IDSESSAO,'CODEMP');
+    V_FIELD_CODMETA := ACT_INT_FIELD(P_IDSESSAO, 1, 'CODMETA');
+
+    IF V_FIELD_CODMETA IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20001,'Erro: <b>A meta selecionada não foi identificada. Certifique-se de que o registro está salvo antes de popular.</b>');
+    ELSIF V_PARAM_CODEMP IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20001,'Erro: <b>Preencha o código da Empresa.</b>');
+    END IF;
+
+    --Bloco para buScar dados na mestre
+    BEGIN
+        SELECT CODEMP, DTINI, DTFIN 
+        INTO V_CODEMPMETA, V_DTINI, V_DTFIN 
+        FROM AD_TMTFAT 
+        WHERE CODMETA = V_FIELD_CODMETA
+            AND ROWNUM = 1;
+    EXCEPTION 
+        WHEN NO_DATA_FOUND THEN 
+            V_CODEMPMETA:= V_PARAM_CODEMP;
+            V_DTINI:= TRUNC(ADD_MONTHS(SYSDATE, -1), 'MM');
+            V_DTFIN:= TRUNC(LAST_DAY(ADD_MONTHS(SYSDATE, -1)));
+    END;
+
+    --Verifica se existe ocorrência de registro da empresa
+    SELECT COUNT(*) INTO V_CODEMP FROM TSIEMP WHERE CODEMP = V_PARAM_CODEMP;
+
+    --Validações da empresa
+    IF V_CODEMP = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001,'Erro: <b>Empresa ' || TO_CHAR(V_PARAM_CODEMP) || ' não existe ou não foi cadastrada.</b>');
+    ELSIF V_CODEMPMETA <> V_PARAM_CODEMP THEN
+        RAISE_APPLICATION_ERROR(-20001,'Erro: <b>A Empresa informada diverge da cadastrada na meta.</b>');
+    END IF;
+
+    -- Deleção 
+    DELETE FROM AD_TMTFATRTVENPCR WHERE CODMETA = V_FIELD_CODMETA;
+    DELETE FROM AD_TMTFATRTVENPRO WHERE CODMETA = V_FIELD_CODMETA;
+    DELETE FROM AD_TMTFATRTVEN WHERE CODMETA = V_FIELD_CODMETA;
+    DELETE FROM AD_TMTFATRTPRO WHERE CODMETA = V_FIELD_CODMETA;
+    
+    --Polulando a grade de produtos 
+    INSERT INTO AD_TMTFATRTPRO AD_TMTFATRTPRO (CODMETA, NRORESPRO, CODPROD, AVPRODPERC, PTCPRODCRESC, FATESTIPRO)
+    SELECT V_FIELD_CODMETA, JS_SEQ.NEXTVAL, Y.CODPROD, V_PERCAV, V_CRESC, V_FATEST
+    FROM (
+        SELECT PRO.CODPROD
+        FROM TGFPRO PRO
+        WHERE PRO.USOPROD IN ('V','R')
+            AND PRO.ATIVO = 'S'
+        GROUP BY PRO.CODPROD
+        ORDER BY CODPROD ASC
+    ) Y;
+    V_AFFECTED_ROWS:= SQL%ROWCOUNT;
+
+    --Polulando a grade de vendedores 
+    INSERT INTO AD_TMTFATRTVEN (CODMETA, NRORESVEN, CODVEND, AVVENPERC, PTCVENCRESC, FATESTIVEN)
+    SELECT V_FIELD_CODMETA, JS_SEQ.NEXTVAL, Y.CODVEND, V_PERCAV, V_CRESC, V_FATEST
+    FROM (
+        SELECT VEN.CODVEND
+        FROM TGFVEN VEN
+        WHERE
+            VEN.CODEMP = V_PARAM_CODEMP 
+            AND VEN.ATIVO = 'S' 
+        GROUP BY VEN.CODVEND
+        ORDER BY VEN.CODVEND ASC
+    ) Y;
+    V_AFFECTED_ROWS:= V_AFFECTED_ROWS + SQL%ROWCOUNT;
+
+    --Polulando a grade de Parceiros/Vendedor 
+    INSERT INTO AD_TMTFATRTVENPCR (CODMETA, NRORESVEN, NRORESPCR,CODPARC,AVPCRPERC, PTCPCRCRESC, FATESTIPCR)
+    SELECT V_FIELD_CODMETA, Y.NRORESVEN, JS_SEQ.NEXTVAL, Y.CODPARC, V_PERCAV, V_CRESC, V_FATEST
+    FROM (
+        SELECT VEN.NRORESVEN, PAR.CODPARC
+        FROM TGFPAR PAR
+        JOIN AD_TMTFATRTVEN VEN ON VEN.CODMETA = V_FIELD_CODMETA AND VEN.CODVEND = PAR.CODVEND
+        WHERE
+            PAR.ATIVO = 'S'
+        GROUP BY VEN.NRORESVEN, PAR.CODPARC
+        ORDER BY PAR.CODPARC
+    ) Y;
+    V_AFFECTED_ROWS:= V_AFFECTED_ROWS + SQL%ROWCOUNT;
+
+    --Polpulando a grade de Produtos/Vendedor
+    INSERT INTO AD_TMTFATRTVENPRO (CODMETA, NRORESVEN, NROPROD, CODPRODT, AVVENPROPERC, PTCVENPROCRESC, FATESTIVENPRO)
+    SELECT V_FIELD_CODMETA, VEN.NRORESVEN, JS_SEQ.NEXTVAL, Y.CODPROD, V_PERCAV, V_CRESC, V_FATEST
+    FROM AD_TMTFATRTVEN VEN 
+    CROSS JOIN (            --Sem condição de igualdade (Junção cruzada) obs: Gera produto cartesiano
+        SELECT PRO.CODPROD
+        FROM TGFPRO PRO
+        WHERE 
+            PRO.USOPROD IN ('V','R')
+        ORDER BY PRO.CODPROD ASC
+    ) Y
+    WHERE VEN.CODMETA = V_FIELD_CODMETA;
+    V_AFFECTED_ROWS:= V_AFFECTED_ROWS + SQL%ROWCOUNT;
+
+    IF NOT V_AFFECTED_ROWS > 0 THEN 
+        P_MENSAGEM:= JS_FC_CARD_ERR_HTML5('Importação não realizada.','Verifique os dados das tabelas internas.');
+        RETURN;
+    END IF;
+
+    P_MENSAGEM := JS_FC_CARD_SUCESS_HTML5('Sucesso!','Grade de Metas geradas com base no cadastro interno.');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE_APPLICATION_ERROR(-20001,'<b>Erro ao popular grades de metas:</b> ' || SQLERRM);
+END;
+
