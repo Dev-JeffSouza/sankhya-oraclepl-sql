@@ -124,7 +124,6 @@ BEGIN
     END IF;
 
     P_MENSAGEM := JS_FC_CARD_SUCESS_HTML5('Sucesso!','Grade de Metas geradas com base no cadastro interno.');
-
 EXCEPTION
     WHEN OTHERS THEN
         RAISE_APPLICATION_ERROR(-20001,'<b>Erro ao popular grades de metas:</b> ' || SQLERRM);
