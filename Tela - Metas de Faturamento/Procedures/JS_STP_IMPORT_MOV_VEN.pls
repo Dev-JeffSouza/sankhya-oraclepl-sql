@@ -29,7 +29,8 @@ CREATE OR REPLACE PROCEDURE JS_STP_IMPORT_MOV_VEN (
     V_TOPS              VARCHAR2(4000);    
     FAT_TOTAL           AD_TMTFATRTVEN.FATVEN%TYPE;
     V_AFFECTED_ROWS     NUMBER:= 0;
-    V_INFO BOOLEAN;
+    V_INFO              BOOLEAN;
+    V_EXISTS            NUMBER:= 0;
 BEGIN
     IF P_QTDLINHAS > 1 THEN
         P_MENSAGEM:= 'Selecione apenas um registro por vez.';
@@ -88,39 +89,53 @@ BEGIN
     END IF;
 
     BEGIN
-
-        BEGIN
-            SELECT
-                CODVEND, FATESTIVEN, PTCVENCRESC, AVVENPERC
-            INTO V_CODVEND, V_FATESTI, V_PTCVENCRESC, V_AVVENPERC
-            FROM AD_TMTFATRTVEN
-            WHERE NRORESVEN = V_NRORESVEN
-                AND CODMETA = V_CODMETA
-            ORDER BY CODVEND
-            FETCH FIRST 1 ROWS ONLY;
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                V_CODVEND:= 0; --Sem vendedor
-        END;
-
-        BEGIN
-            SELECT
-                MAX(CASE WHEN CODVEND = V_CODVEND THEN APELIDO END) AS NOME_DEST,
-                MAX(CASE WHEN VP_CODVEND1 IS NOT NULL AND CODVEND = VP_CODVEND1 THEN SUBSTR(APELIDO, 1, INSTR(APELIDO || ' ', ' ') - 1) END) AS NOME_ORIG_1,
-                MAX(CASE WHEN VP_CODVEND2 IS NOT NULL AND CODVEND = VP_CODVEND2 THEN SUBSTR(APELIDO, 1, INSTR(APELIDO || ' ', ' ') - 1) END) AS NOME_ORIG_2
-            INTO V_NOME_DEST, V_NOME_ORIG_1, V_NOME_ORIG_2
-            FROM TGFVEN 
-            WHERE CODVEND = V_CODVEND
-                OR (VP_CODVEND1 IS NOT NULL AND CODVEND = VP_CODVEND1)
-                OR (VP_CODVEND2 IS NOT NULL AND CODVEND = VP_CODVEND2);
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                V_NOME_DEST:= 'Nome não localizado';
-                V_NOME_ORIG_1:= 'Indefinido';
-                V_NOME_ORIG_2:= 'Indefinido';
-        END;    
-
+        SELECT 1
+        INTO V_EXISTS
+        FROM TGFCAB C
+        WHERE C.TIPMOV = 'V'
+            AND (
+                    (C.CODVEND = VP_CODVEND1 AND C.DTMOV BETWEEN VP_DTINI_V1 AND VP_DTFIN_V1)
+                OR 
+                    (C.CODVEND = VP_CODVEND2 AND C.DTMOV BETWEEN VP_DTINI_V2 AND VP_DTFIN_V2)
+            )
+            AND ROWNUM = 1;
+    EXCEPTION 
+        WHEN NO_DATA_FOUND THEN 
+            P_MENSAGEM:= JS_FC_CARD_ERR_HTML5('Importação não realizada.','Verique se há movimentação financeira no periodo informado para este(s) vendedor(es).');
+            RETURN;
+        
     END;
+
+    BEGIN
+        SELECT
+            CODVEND, FATESTIVEN, PTCVENCRESC, AVVENPERC
+        INTO V_CODVEND, V_FATESTI, V_PTCVENCRESC, V_AVVENPERC
+        FROM AD_TMTFATRTVEN
+        WHERE NRORESVEN = V_NRORESVEN
+            AND CODMETA = V_CODMETA
+        ORDER BY CODVEND
+        FETCH FIRST 1 ROWS ONLY;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            V_CODVEND:= 0; --Sem vendedor
+    END;
+
+    BEGIN
+        SELECT
+            MAX(CASE WHEN CODVEND = V_CODVEND THEN APELIDO END) AS NOME_DEST,
+            MAX(CASE WHEN VP_CODVEND1 IS NOT NULL AND CODVEND = VP_CODVEND1 THEN SUBSTR(APELIDO, 1, INSTR(APELIDO || ' ', ' ') - 1) END) AS NOME_ORIG_1,
+            MAX(CASE WHEN VP_CODVEND2 IS NOT NULL AND CODVEND = VP_CODVEND2 THEN SUBSTR(APELIDO, 1, INSTR(APELIDO || ' ', ' ') - 1) END) AS NOME_ORIG_2
+        INTO V_NOME_DEST, V_NOME_ORIG_1, V_NOME_ORIG_2
+        FROM TGFVEN 
+        WHERE CODVEND = V_CODVEND
+            OR (VP_CODVEND1 IS NOT NULL AND CODVEND = VP_CODVEND1)
+            OR (VP_CODVEND2 IS NOT NULL AND CODVEND = VP_CODVEND2);
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            V_NOME_DEST:= 'Nome não localizado';
+            V_NOME_ORIG_1:= 'Indefinido';
+            V_NOME_ORIG_2:= 'Indefinido';
+    END;    
 
     V_NOME_CONCAT:= CASE
                         WHEN VP_CODVEND1 IS NOT NULL AND VP_CODVEND2 IS NOT NULL THEN V_NOME_ORIG_1 || ' - ' || V_NOME_ORIG_2
@@ -214,7 +229,7 @@ BEGIN
     V_AFFECTED_ROWS:= V_AFFECTED_ROWS + SQL%ROWCOUNT;
 
     IF NOT V_AFFECTED_ROWS > 0 THEN
-        P_MENSAGEM:= JS_FC_CARD_ERR_HTML5('Importação não realizada.','Verique se há movimentação financeira no periodo informado para este(s) vendedor(es).');
+        P_MENSAGEM:= JS_FC_CARD_ERR_HTML5('Importação não realizada.','Nenhuma movimentação foi processada.');
         RETURN;
     END IF;
 
