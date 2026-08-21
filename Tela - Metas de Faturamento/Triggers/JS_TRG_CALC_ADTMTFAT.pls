@@ -18,7 +18,10 @@ BEGIN
 
     IF INSERTING OR (:NEW.DTINI != :OLD.DTINI) OR (:NEW.DTFIN != :OLD.DTFIN) THEN 
         PKG_METAS_FATURAMENTO.VG_UPDATING_CAB:= TRUE; --Flag de controle
-        :NEW.FATGERAL:= JS_FC_CALC_FAT(P_DTINI => :NEW.DTINI, P_DTFIN => :NEW.DTFIN, P_CODEMP => :NEW.CODEMP);
+
+        :NEW.FATGERAL:= JS_FC_CALC_FAT(P_DTINI => :NEW.DTINI, 
+                                        P_DTFIN => :NEW.DTFIN, 
+                                        P_CODEMP => :NEW.CODEMP);
 
         IF INSERTING AND :NEW.DTREF IS NULL THEN 
             :NEW.DTREF:= ADD_MONTHS(TRUNC(SYSDATE,'MM'),0);

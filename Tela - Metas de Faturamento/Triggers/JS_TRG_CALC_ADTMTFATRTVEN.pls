@@ -56,7 +56,10 @@ BEGIN
                                     Caso precise atualizar o vendedor, você deve excluir a importação atual ou cadastra-lo novamente.');
         END IF;
 
-        :NEW.FATVEN:= JS_FC_CALC_FAT(P_DTINI => V_DTINI, P_DTFIN => V_DTFIN, P_CODVEND => :NEW.CODVEND, P_CODEMP => V_CODEMP);
+        :NEW.FATVEN:= JS_FC_CALC_FAT(P_DTINI => V_DTINI, 
+                                        P_DTFIN => V_DTFIN, 
+                                        P_CODVEND => :NEW.CODVEND, 
+                                        P_CODEMP => V_CODEMP);
     ELSE 
         :NEW.FATVEN:= COALESCE(:NEW.FATVEN, 0);
     END IF;

@@ -67,7 +67,11 @@ BEGIN
                                     Caso precise atualizar o Produto, você deve excluir a importação atual ou cadastra-lo novamente.');
         END IF;
 
-        :NEW.FATVENPRO:= JS_FC_CALC_FAT(P_DTINI => V_DTINI, P_DTFIN => V_DTFIN, P_CODPROD => :NEW.CODPRODT, P_CODVEND => V_CODVEND, P_CODEMP  => V_CODEMP);
+        :NEW.FATVENPRO:= JS_FC_CALC_FAT(P_DTINI => V_DTINI, 
+                                        P_DTFIN => V_DTFIN, 
+                                        P_CODPROD => :NEW.CODPRODT, 
+                                        P_CODVEND => V_CODVEND, 
+                                        P_CODEMP  => V_CODEMP);
     ELSE
         :NEW.FATVENPRO:= COALESCE(:NEW.FATVENPRO, 0);
     END IF;

@@ -68,7 +68,11 @@ BEGIN
                                     Caso precise atualizar o Parceiro, você deve excluir a importação atual ou cadastra-lo novamente.');
         END IF;
         
-        :NEW.FATPCR:= JS_FC_CALC_FAT(P_DTINI => V_DTINI, P_DTFIN => V_DTFIN, P_CODVEND => V_CODVEND, P_CODPARC => :NEW.CODPARC, P_CODEMP => V_CODEMP);
+        :NEW.FATPCR:= JS_FC_CALC_FAT(P_DTINI => V_DTINI, 
+                                        P_DTFIN => V_DTFIN, 
+                                        P_CODVEND => V_CODVEND, 
+                                        P_CODPARC => :NEW.CODPARC, 
+                                        P_CODEMP => V_CODEMP);
     ELSE
         :NEW.FATPCR:= COALESCE(:NEW.FATPCR, 0);
     END IF;

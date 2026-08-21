@@ -33,7 +33,7 @@ CREATE OR REPLACE PROCEDURE JS_STP_IMPORT_MOV_VEN (
     V_EXISTS            NUMBER:= 0;
 BEGIN
     IF P_QTDLINHAS > 1 THEN
-        P_MENSAGEM:= 'Selecione apenas um registro por vez.';
+        P_MENSAGEM:= JS_FC_CARD_ERR_HTML5('Atenção', 'Selecione apenas um vendedor por vez.');
         RETURN;
     END IF;
 
@@ -88,7 +88,7 @@ BEGIN
         RETURN;
     END IF;
 
-    BEGIN
+    BEGIN --Depois ajustar mais abaixo pra não trazer nomes de vendedores que não tenha movimentações
         SELECT 1
         INTO V_EXISTS
         FROM TGFCAB C
@@ -103,7 +103,6 @@ BEGIN
         WHEN NO_DATA_FOUND THEN 
             P_MENSAGEM:= JS_FC_CARD_ERR_HTML5('Importação não realizada.','Verique se há movimentação financeira no periodo informado para este(s) vendedor(es).');
             RETURN;
-        
     END;
 
     BEGIN

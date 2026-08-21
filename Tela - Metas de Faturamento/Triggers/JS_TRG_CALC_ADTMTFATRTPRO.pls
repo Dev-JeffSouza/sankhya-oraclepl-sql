@@ -53,8 +53,16 @@ BEGIN
     END IF;
 
     IF INSERTING OR (:NEW.CODPROD != :OLD.CODPROD) OR PKG_METAS_FATURAMENTO.VG_UPDATING_CAB THEN 
-        :NEW.FATPROD := JS_FC_CALC_FAT(P_DTINI => V_DTINI, P_DTFIN => V_DTFIN, P_CODPROD => :NEW.CODPROD, P_CODEMP => V_CODEMP);
-        :NEW.QTDNEG  := JS_FC_CALC_FAT(P_DTINI => V_DTINI, P_DTFIN => V_DTFIN, P_CODPROD => :NEW.CODPROD, P_CODEMP => V_CODEMP, P_ITENEG => 'S');
+        :NEW.FATPROD := JS_FC_CALC_FAT(P_DTINI => V_DTINI, 
+                                        P_DTFIN => V_DTFIN, 
+                                        P_CODPROD => :NEW.CODPROD, 
+                                        P_CODEMP => V_CODEMP);
+
+        :NEW.QTDNEG  := JS_FC_CALC_FAT(P_DTINI => V_DTINI, 
+                                        P_DTFIN => V_DTFIN, 
+                                        P_CODPROD => :NEW.CODPROD, 
+                                        P_CODEMP => V_CODEMP, 
+                                        P_ITENEG => 'S');
     ELSE
         :NEW.FATPROD := COALESCE(:NEW.FATPROD, 0);
         :NEW.QTDNEG  := COALESCE(:NEW.QTDNEG, 0);

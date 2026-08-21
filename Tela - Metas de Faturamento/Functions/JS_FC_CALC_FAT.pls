@@ -75,5 +75,5 @@ BEGIN
     RETURN V_VLRFAT;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN 0;
+        RETURN -1; --Indicador de erro
 END;
